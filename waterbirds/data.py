@@ -17,7 +17,7 @@ class WaterbirdsDataset(Dataset):
         self.dpath = dpath
         self.df = df
         self.transforms = transforms.Compose([
-            transforms.Resize((96, 96)),
+            transforms.Resize((224, 224)),
             transforms.ToTensor()
         ])
 
