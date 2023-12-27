@@ -8,7 +8,7 @@ from encoder_cnn import IMG_ENCODE_SIZE, EncoderCNN
 from decoder_cnn import IMG_DECODE_SHAPE, IMG_DECODE_SIZE, DecoderCNN
 from torch.optim import AdamW
 from torchmetrics import Accuracy
-from utils.nn_utils import SkipMLP, one_hot, arr_to_cov, batchnorm_to_groupnorm
+from utils.nn_utils import SkipMLP, one_hot, arr_to_cov
 
 
 class Encoder(nn.Module):
@@ -101,7 +101,7 @@ class Prior(nn.Module):
 
 
 class VAE(pl.LightningModule):
-    def __init__(self, task, z_size, rank, h_sizes, y_mult, beta, reg_mult, init_sd, n_groups, lr, weight_decay,
+    def __init__(self, task, z_size, rank, h_sizes, y_mult, beta, reg_mult, init_sd, lr, weight_decay,
             lr_infer, n_infer_steps):
         super().__init__()
         self.save_hyperparameters()
@@ -123,7 +123,6 @@ class VAE(pl.LightningModule):
         # p(y|z)
         self.classifier = SkipMLP(z_size, h_sizes, 1)
         self.test_acc = Accuracy('binary')
-        batchnorm_to_groupnorm(self, n_groups)
 
     def sample_z(self, dist):
         mu, scale_tril = dist.loc, dist.scale_tril

@@ -46,11 +46,3 @@ def one_hot(categorical, n_categories):
 def arr_to_cov(low_rank, diag):
     return torch.bmm(low_rank, low_rank.transpose(1, 2)) + torch.diag_embed(F.softplus(diag) + torch.full_like(diag,
         COV_OFFSET))
-
-
-def batchnorm_to_groupnorm(pl_module, n_groups):
-    for child_name, child in pl_module.named_children():
-        if isinstance(child, nn.BatchNorm2d):
-            setattr(pl_module, child_name, nn.GroupNorm(n_groups, child.num_features))
-        else:
-            batchnorm_to_groupnorm(child, n_groups)
