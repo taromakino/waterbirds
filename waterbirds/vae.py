@@ -8,7 +8,7 @@ from encoder_cnn import IMG_ENCODE_SIZE, EncoderCNN
 from decoder_cnn import IMG_DECODE_SHAPE, IMG_DECODE_SIZE, DecoderCNN
 from torch.optim import AdamW
 from torchmetrics import Accuracy
-from utils.nn_utils import SkipMLP, one_hot, arr_to_cov
+from utils.nn_utils import SkipMLP, one_hot, arr_to_cov, batchnorm_to_groupnorm
 
 
 class Encoder(nn.Module):
@@ -56,19 +56,13 @@ class Encoder(nn.Module):
 class Decoder(nn.Module):
     def __init__(self, z_size, h_sizes):
         super().__init__()
-        self.mlp_causal = SkipMLP(z_size, h_sizes, IMG_DECODE_SIZE)
-        self.mlp_spurious = SkipMLP(z_size, h_sizes, IMG_DECODE_SIZE)
-        self.decoder_cnn_causal = DecoderCNN()
-        self.decoder_cnn_spurious = DecoderCNN()
+        self.mlp = SkipMLP(2 * z_size, h_sizes, IMG_DECODE_SIZE)
+        self.decoder = DecoderCNN()
 
     def forward(self, x, z):
-        z_c, z_s = torch.chunk(z, 2, dim=1)
         batch_size = len(x)
-        x_pred_causal = self.mlp_causal(z_c).view(batch_size, *IMG_DECODE_SHAPE)
-        x_pred_causal = self.decoder_cnn_causal(x_pred_causal).view(batch_size, -1)
-        x_pred_spurious = self.mlp_spurious(z_s).view(batch_size, *IMG_DECODE_SHAPE)
-        x_pred_spurious = self.decoder_cnn_spurious(x_pred_spurious).view(batch_size, -1)
-        x_pred = x_pred_causal + x_pred_spurious
+        x_pred = self.mlp(z).view(batch_size, *IMG_DECODE_SHAPE)
+        x_pred = self.decoder(x_pred).view(batch_size, -1)
         return -F.binary_cross_entropy_with_logits(x_pred, x.view(batch_size, -1), reduction='none').sum(dim=1)
 
 
@@ -107,8 +101,8 @@ class Prior(nn.Module):
 
 
 class VAE(pl.LightningModule):
-    def __init__(self, task, z_size, rank, h_sizes, y_mult, beta, reg_mult, init_sd, lr, weight_decay, lr_infer,
-            n_infer_steps):
+    def __init__(self, task, z_size, rank, h_sizes, y_mult, beta, reg_mult, init_sd, n_groups, lr, weight_decay,
+            lr_infer, n_infer_steps):
         super().__init__()
         self.save_hyperparameters()
         self.task = task
@@ -129,6 +123,7 @@ class VAE(pl.LightningModule):
         # p(y|z)
         self.classifier = SkipMLP(z_size, h_sizes, 1)
         self.test_acc = Accuracy('binary')
+        batchnorm_to_groupnorm(self, n_groups)
 
     def sample_z(self, dist):
         mu, scale_tril = dist.loc, dist.scale_tril
@@ -153,15 +148,11 @@ class VAE(pl.LightningModule):
         kl_spurious = D.kl_divergence(posterior_spurious, prior_spurious).mean()
         kl = kl_causal + kl_spurious
         prior_norm = (torch.hstack((prior_causal.loc, prior_spurious.loc)) ** 2).mean()
-        entropy_causal = posterior_causal.entropy().mean()
-        entropy_spurious = posterior_spurious.entropy().mean()
-        entropy = entropy_causal + entropy_spurious
-        prior_nll = kl + entropy
-        return log_prob_x_z, log_prob_y_zc, kl, prior_norm, prior_nll
+        return log_prob_x_z, log_prob_y_zc, kl, prior_norm
 
     def training_step(self, batch, batch_idx):
         x, y, e = batch
-        log_prob_x_z, log_prob_y_zc, kl, prior_norm, prior_nll = self.loss(x, y, e)
+        log_prob_x_z, log_prob_y_zc, kl, prior_norm = self.loss(x, y, e)
         loss = -log_prob_x_z - self.y_mult * log_prob_y_zc + self.beta * kl + self.reg_mult * prior_norm
         return loss
 
@@ -218,10 +209,9 @@ class VAE(pl.LightningModule):
     def validation_step(self, batch, batch_idx, dataloader_idx):
         x, y, e = batch
         if dataloader_idx == 0:
-            log_prob_x_z, log_prob_y_zc, kl, prior_norm, prior_nll = self.loss(x, y, e)
+            log_prob_x_z, log_prob_y_zc, kl, prior_norm = self.loss(x, y, e)
             loss = -log_prob_x_z - self.y_mult * log_prob_y_zc + self.beta * kl + self.reg_mult * prior_norm
             self.log('val_loss', loss, on_step=False, on_epoch=True, add_dataloader_idx=False)
-            self.log('val_prior_nll', prior_nll, on_step=False, on_epoch=True, add_dataloader_idx=False)
         else:
             assert dataloader_idx == 1
             with torch.set_grad_enabled(True):
