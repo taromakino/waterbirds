@@ -4,14 +4,11 @@ import pandas as pd
 import torch
 import torchvision.transforms as transforms
 from PIL import Image
-from utils.enums import Environment
 from torch.utils.data import Dataset, DataLoader
 
 
-N_ENVS = len(Environment) - 1 # Don't count test env
+N_ENVS = 2
 N_CLASSES = 2
-N_TEST_LANDBIRDS = 700
-N_TEST_WATERBIRDS = 200
 
 
 class WaterbirdsDataset(Dataset):
@@ -33,6 +30,27 @@ class WaterbirdsDataset(Dataset):
         if not torch.isnan(e).any():
             e = e.long()
         return x, y, e
+
+
+def landbirds_on_land_idxs(df):
+    return np.where((df.y == 0) & (df.place == 0))[0]
+
+
+def waterbirds_on_land_idxs(df):
+    return np.where((df.y == 1) & (df.place == 0))[0]
+
+
+def landbirds_on_water_idxs(df):
+    return np.where((df.y == 0) & (df.place == 1))[0]
+
+
+def waterbirds_on_water_idxs(df):
+    return np.where((df.y == 1) & (df.place == 1))[0]
+
+
+def drop_idxs(df, idxs):
+    remaining_idxs = np.setdiff1d(np.arange(len(df)), idxs)
+    return df.iloc[remaining_idxs]
 
 
 def subsample(rng, df, n_eval_examples):
@@ -69,23 +87,42 @@ def make_data(train_ratio, batch_size, eval_batch_size, n_workers, n_test_exampl
     df = pd.read_csv(os.path.join(dpath, 'metadata.csv'))
     df['e'] = np.nan
 
-    landbirds_on_water_idxs = np.where((df.y == 0) & (df.place == 1))[0]
-    waterbirds_on_water_idxs = np.where((df.y == 1) & (df.place == 1))[0]
+    full_landbirds_on_water_idxs = landbirds_on_water_idxs(df)
+    full_waterbirds_on_water_idxs = waterbirds_on_water_idxs(df)
 
-    test_landbirds_on_water_idxs = rng.choice(landbirds_on_water_idxs, N_TEST_LANDBIRDS, replace=False)
-    test_waterbirds_on_water_idxs = rng.choice(waterbirds_on_water_idxs, N_TEST_WATERBIRDS, replace=False)
+    test_landbirds_on_water_idxs = rng.choice(full_landbirds_on_water_idxs, 500, replace=False)
+    test_waterbirds_on_water_idxs = rng.choice(full_waterbirds_on_water_idxs, 500, replace=False)
 
     test_idxs = np.concatenate((test_landbirds_on_water_idxs, test_waterbirds_on_water_idxs))
-    trainval_idxs = np.setdiff1d(np.arange(len(df)), test_idxs)
-
-    df_trainval = df.iloc[trainval_idxs]
     df_test = df.iloc[test_idxs]
 
-    trainval_land_idxs = np.where(df_trainval.place == 0)[0]
-    env0_idxs = rng.choice(trainval_land_idxs, len(trainval_land_idxs) // 2, replace=False)
-    env1_idxs = np.setdiff1d(np.arange(len(df_trainval)), env0_idxs)
-    df_trainval.e.iloc[env0_idxs] = 0
-    df_trainval.e.iloc[env1_idxs] = 1
+    df = drop_idxs(df, test_idxs)
+    remaining_landbirds_on_land_idxs = landbirds_on_land_idxs(df)
+    remaining_waterbirds_on_land_idxs = waterbirds_on_land_idxs(df)
+
+    env0_idxs = []
+    env0_idxs.append(rng.choice(remaining_landbirds_on_land_idxs, 425, replace=False))
+    env0_idxs.append(rng.choice(remaining_waterbirds_on_land_idxs, 25, replace=False))
+    env0_idxs = np.concatenate(env0_idxs)
+    df_env0 = df.iloc[env0_idxs]
+    df_env0.e = 0
+
+    df = drop_idxs(df, env0_idxs)
+    remaining_landbirds_on_land_idxs = landbirds_on_land_idxs(df)
+    remaining_waterbirds_on_land_idxs = waterbirds_on_land_idxs(df)
+    remaining_landbirds_on_water_idxs = landbirds_on_water_idxs(df)
+    remaining_waterbirds_on_water_idxs = waterbirds_on_water_idxs(df)
+
+    env1_idxs = []
+    env1_idxs.append(rng.choice(remaining_landbirds_on_land_idxs, 425, replace=False))
+    env1_idxs.append(rng.choice(remaining_waterbirds_on_land_idxs, 25, replace=False))
+    env1_idxs.append(rng.choice(remaining_landbirds_on_water_idxs, 50, replace=False))
+    env1_idxs.append(rng.choice(remaining_waterbirds_on_water_idxs, 950, replace=False))
+    env1_idxs = np.concatenate(env1_idxs)
+    df_env1 = df.iloc[env1_idxs]
+    df_env1.e = 1
+
+    df_trainval = pd.concat((df_env0, df_env1))
 
     train_idxs = rng.choice(len(df_trainval), int(train_ratio * len(df_trainval)), replace=False)
     val_idxs = np.setdiff1d(np.arange(len(df_trainval)), train_idxs)
