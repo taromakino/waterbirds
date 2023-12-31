@@ -151,6 +151,7 @@ class VAE(pl.LightningModule):
         x, y, e = batch
         log_prob_x_z, log_prob_y_zc, kl, prior_norm, y_pred = self.loss(x, y, e)
         loss = -log_prob_x_z - self.y_mult * log_prob_y_zc + self.beta * kl + self.reg_mult * prior_norm
+        self.log('train_log_prob_y_zc', log_prob_y_zc, on_step=False, on_epoch=True)
         return loss
 
     def init_z(self, x):
