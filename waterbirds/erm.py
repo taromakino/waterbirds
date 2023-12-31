@@ -14,7 +14,6 @@ class ERM(pl.LightningModule):
         self.fc = nn.Linear(IMG_ENCODE_SIZE, 1)
         self.lr = lr
         self.weight_decay = weight_decay
-        self.train_acc = Accuracy('binary')
         self.val_acc = Accuracy('binary')
         self.test_acc = Accuracy('binary')
 
