@@ -10,6 +10,8 @@ from torch.utils.data import Dataset, DataLoader
 
 N_ENVS = len(Environment) - 1 # Don't count test env
 N_CLASSES = 2
+N_TEST_LANDBIRDS = 700
+N_TEST_WATERBIRDS = 200
 
 
 class WaterbirdsDataset(Dataset):
@@ -41,22 +43,49 @@ def subsample(rng, df, n_eval_examples):
         return df.iloc[idxs]
 
 
-def make_data(test_e_name, train_ratio, batch_size, eval_batch_size, n_workers, n_test_examples):
+def make_data(train_ratio, batch_size, eval_batch_size, n_workers, n_test_examples):
+    '''
+    Landbirds / waterbirds by place:
+    land:  6220 / 831
+    water: 2905 / 1832
+
+    Environment 0:
+    land:  3089 / 436
+
+    Environment 1:
+    land:  3131 / 395
+    water: 2205 / 1632
+
+    Test environment:
+    water: 700 / 200
+
+    The spurious feature is constant for environment 0. On environment 1, the water background is positively correlated with
+    waterbirds. On the test environment, the water background is negatively correlated with waterbirds.
+    '''
+
     rng = np.random.RandomState(0)
     dpath = os.path.join(os.environ['DATA_DPATH'], 'waterbird_complete95_forest2water2')
 
     df = pd.read_csv(os.path.join(dpath, 'metadata.csv'))
-    df['e_name'] = df.place_filename.apply(lambda x: x.split('/')[2])
+    df['e'] = np.nan
 
-    df_test = df[df.e_name == test_e_name.value]
-    landbird_idxs = np.where(df_test.y == 0)[0]
-    waterbird_idxs = np.where(df_test.y == 1)[0]
-    landbird_idxs = rng.choice(landbird_idxs, len(waterbird_idxs), replace=False)
-    df_test = df_test.iloc[np.concatenate((landbird_idxs, waterbird_idxs))]
-    df_test['e'] = float('nan')
+    landbirds_on_water_idxs = np.where((df.y == 0) & (df.place == 1))[0]
+    waterbirds_on_water_idxs = np.where((df.y == 1) & (df.place == 1))[0]
 
-    df_trainval = df[df.e_name != test_e_name.value]
-    df_trainval['e'] = pd.factorize(df_trainval.e_name)[0]
+    test_landbirds_on_water_idxs = rng.choice(landbirds_on_water_idxs, N_TEST_LANDBIRDS, replace=False)
+    test_waterbirds_on_water_idxs = rng.choice(waterbirds_on_water_idxs, N_TEST_WATERBIRDS, replace=False)
+
+    test_idxs = np.concatenate((test_landbirds_on_water_idxs, test_waterbirds_on_water_idxs))
+    trainval_idxs = np.setdiff1d(np.arange(len(df)), test_idxs)
+
+    df_trainval = df.iloc[trainval_idxs]
+    df_test = df.iloc[test_idxs]
+
+    trainval_land_idxs = np.where(df_trainval.place == 0)[0]
+    env0_idxs = rng.choice(trainval_land_idxs, len(trainval_land_idxs) // 2, replace=False)
+    env1_idxs = np.setdiff1d(np.arange(len(df_trainval)), env0_idxs)
+    df_trainval.e.iloc[env0_idxs] = 0
+    df_trainval.e.iloc[env1_idxs] = 1
 
     train_idxs = rng.choice(len(df_trainval), int(train_ratio * len(df_trainval)), replace=False)
     val_idxs = np.setdiff1d(np.arange(len(df_trainval)), train_idxs)

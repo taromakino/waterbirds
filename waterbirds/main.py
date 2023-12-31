@@ -5,12 +5,12 @@ from argparse import ArgumentParser
 from erm import ERM
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import CSVLogger
-from utils.enums import Task, EvalStage, Environment
+from utils.enums import Task, EvalStage
 from vae import VAE
 
 
 def make_data(args):
-    data_train, data_val, data_test = data.make_data(args.test_e_name, args.train_ratio, args.batch_size,
+    data_train, data_val, data_test = data.make_data(args.train_ratio, args.batch_size,
         args.eval_batch_size, args.n_workers, args.n_test_examples if args.task == Task.VAE else None)
     if args.eval_stage is None:
         data_eval = None
@@ -89,7 +89,6 @@ if __name__ == '__main__':
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--task', type=Task, choices=list(Task), required=True)
     parser.add_argument('--eval_stage', type=EvalStage, choices=list(EvalStage))
-    parser.add_argument('--test_e_name', type=Environment, choices=list(Environment))
     parser.add_argument('--train_ratio', type=int, default=0.9)
     parser.add_argument('--batch_size', type=int, default=128)
     parser.add_argument('--eval_batch_size', type=int, default=1024)
