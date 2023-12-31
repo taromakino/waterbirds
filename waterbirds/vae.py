@@ -153,19 +153,6 @@ class VAE(pl.LightningModule):
         loss = -log_prob_x_z - self.y_mult * log_prob_y_zc + self.beta * kl + self.reg_mult * prior_norm
         return loss
 
-    def validation_step(self, batch, batch_idx):
-        x, y, e = batch
-        log_prob_x_z, log_prob_y_zc, kl, prior_norm, y_pred = self.loss(x, y, e)
-        loss = -log_prob_x_z - self.y_mult * log_prob_y_zc + self.beta * kl + self.reg_mult * prior_norm
-        self.log('val_log_prob_x_z', log_prob_x_z, on_step=False, on_epoch=True, add_dataloader_idx=False)
-        self.log('val_log_prob_y_zc', log_prob_y_zc, on_step=False, on_epoch=True, add_dataloader_idx=False)
-        self.log('val_kl', kl, on_step=False, on_epoch=True, add_dataloader_idx=False)
-        self.log('val_loss', loss, on_step=False, on_epoch=True, add_dataloader_idx=False)
-        self.val_acc.update(y_pred, y)
-
-    def on_validation_epoch_end(self):
-        self.log('val_acc', self.val_acc.compute())
-
     def init_z(self, x):
         posterior_causal, posterior_spurious = self.encoder(x)
         z_c = posterior_causal.loc
@@ -207,6 +194,26 @@ class VAE(pl.LightningModule):
         loss_candidates = torch.hstack(loss_candidates)
         y_pred = loss_candidates.argmin(dim=1)
         return y_pred
+
+    def validation_step(self, batch, batch_idx, dataloader_idx):
+        x, y, e = batch
+        if dataloader_idx == 0:
+            log_prob_x_z, log_prob_y_zc, kl, prior_norm, y_pred = self.loss(x, y, e)
+            loss = -log_prob_x_z - self.y_mult * log_prob_y_zc + self.beta * kl + self.reg_mult * prior_norm
+            self.log('val_log_prob_x_z', log_prob_x_z, on_step=False, on_epoch=True, add_dataloader_idx=False)
+            self.log('val_log_prob_y_zc', log_prob_y_zc, on_step=False, on_epoch=True, add_dataloader_idx=False)
+            self.log('val_kl', kl, on_step=False, on_epoch=True, add_dataloader_idx=False)
+            self.log('val_loss', loss, on_step=False, on_epoch=True, add_dataloader_idx=False)
+            self.val_acc.update(y_pred, y)
+        else:
+            assert dataloader_idx == 1
+            with torch.set_grad_enabled(True):
+                y_pred = self.classify(x)
+                self.test_acc.update(y_pred, y)
+
+    def on_validation_epoch_end(self):
+        self.log('val_acc', self.val_acc.compute())
+        self.log('test_acc', self.test_acc.compute())
 
     def test_step(self, batch, batch_idx):
         x, y, e = batch
