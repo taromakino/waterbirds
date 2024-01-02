@@ -12,6 +12,7 @@ class EncoderCNN(nn.Module):
         self.net = densenet121(weights='IMAGENET1K_V1')
         del self.net.classifier
         self.net.classifier = nn.Identity()
+        self.net.freeze()
         self.normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 
     def forward(self, x):
