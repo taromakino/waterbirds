@@ -32,42 +32,12 @@ class WaterbirdsDataset(Dataset):
         return x, y, e
 
 
-def landbirds_on_land_idxs(df):
-    return np.where((df.y == 0) & (df.place == 0))[0]
-
-
-def waterbirds_on_land_idxs(df):
-    return np.where((df.y == 1) & (df.place == 0))[0]
-
-
-def landbirds_on_water_idxs(df):
-    return np.where((df.y == 0) & (df.place == 1))[0]
-
-
-def waterbirds_on_water_idxs(df):
-    return np.where((df.y == 1) & (df.place == 1))[0]
-
-
-def sample_groups(rng, df, n_landbirds_on_land, n_landbirds_on_water, n_waterbirds_on_land, n_waterbirds_on_water):
-    full_landbirds_on_land_idxs = landbirds_on_land_idxs(df)
-    full_landbirds_on_water_idxs = landbirds_on_water_idxs(df)
-    full_waterbirds_on_land_idxs = waterbirds_on_land_idxs(df)
-    full_waterbirds_on_water_idxs = waterbirds_on_water_idxs(df)
-    sample_landbirds_on_land_idxs = rng.choice(full_landbirds_on_land_idxs, n_landbirds_on_land, replace=False)
-    sample_landbirds_on_water_idxs = rng.choice(full_landbirds_on_water_idxs, n_landbirds_on_water, replace=False)
-    sample_waterbirds_on_land_idxs = rng.choice(full_waterbirds_on_land_idxs, n_waterbirds_on_land, replace=False)
-    sample_waterbirds_on_water_idxs = rng.choice(full_waterbirds_on_water_idxs, n_waterbirds_on_water, replace=False)
-    idxs = np.concatenate((sample_landbirds_on_land_idxs, sample_landbirds_on_water_idxs, sample_waterbirds_on_land_idxs,
-        sample_waterbirds_on_water_idxs))
-    return idxs
-
-
 def drop_idxs(df, idxs):
     remaining_idxs = np.setdiff1d(np.arange(len(df)), idxs)
     return df.iloc[remaining_idxs]
 
 
-def make_data(train_ratio, batch_size, eval_batch_size, n_workers, n_test_examples):
+def make_data(train_ratio, batch_size, eval_batch_size, n_workers):
     '''
     Landbirds / waterbirds by place:
     land:  6220 / 831
@@ -79,17 +49,51 @@ def make_data(train_ratio, batch_size, eval_batch_size, n_workers, n_test_exampl
 
     df = pd.read_csv(os.path.join(dpath, 'metadata.csv'))
     df['e'] = np.nan
+    df['subplace'] = df.place_filename.apply(lambda x: x.split('/')[2])
 
-    test_idxs = sample_groups(rng, df, 250, 250, 250, 250)
+    test_landbirds_on_land_idxs = np.where((df.y == 0) & (df.place == 0))[0]
+    test_landbirds_on_water_idxs = np.where((df.y == 0) & (df.place == 1))[0]
+    test_waterbirds_on_land_idxs = np.where((df.y == 1) & (df.place == 0))[0]
+    test_waterbirds_on_water_idxs = np.where((df.y == 1) & (df.place == 1))[0]
+
+    test_landbirds_on_land_idxs = rng.choice(test_landbirds_on_land_idxs, 250, replace=False)
+    test_landbirds_on_water_idxs = rng.choice(test_landbirds_on_water_idxs, 250, replace=False)
+    test_waterbirds_on_land_idxs = rng.choice(test_waterbirds_on_land_idxs, 250, replace=False)
+    test_waterbirds_on_water_idxs = rng.choice(test_waterbirds_on_water_idxs, 250, replace=False)
+
+    test_idxs = np.concatenate((test_landbirds_on_land_idxs, test_landbirds_on_water_idxs, test_waterbirds_on_land_idxs,
+                                test_waterbirds_on_water_idxs))
     df_test = df.iloc[test_idxs]
     df = drop_idxs(df, test_idxs)
 
-    env0_idxs = sample_groups(rng, df, 425, 25, 25, 425)
+    env0_landbirds_on_bamboo_forest_idxs = np.where((df.y == 0) & (df.subplace == 'bamboo_forest'))[0]
+    env0_landbirds_on_lake_idxs = np.where((df.y == 0) & (df.subplace == 'lake'))[0]
+    env0_waterbirds_on_bamboo_forest_idxs = np.where((df.y == 1) & (df.subplace == 'bamboo_forest'))[0]
+    env0_waterbirds_on_lake_idxs = np.where((df.y == 1) & (df.subplace == 'lake'))[0]
+
+    env0_landbirds_on_bamboo_forest_idxs = rng.choice(env0_landbirds_on_bamboo_forest_idxs, 425, replace=False)
+    env0_landbirds_on_lake_idxs = rng.choice(env0_landbirds_on_lake_idxs, 25, replace=False)
+    env0_waterbirds_on_bamboo_forest_idxs = rng.choice(env0_waterbirds_on_bamboo_forest_idxs, 25, replace=False)
+    env0_waterbirds_on_lake_idxs = rng.choice(env0_waterbirds_on_lake_idxs, 425, replace=False)
+
+    env0_idxs = np.concatenate((env0_landbirds_on_bamboo_forest_idxs, env0_landbirds_on_lake_idxs,
+        env0_waterbirds_on_bamboo_forest_idxs, env0_waterbirds_on_lake_idxs))
     df_env0 = df.iloc[env0_idxs]
     df_env0.e = 0
     df = drop_idxs(df, env0_idxs)
 
-    env1_idxs = sample_groups(rng, df, 25, 425, 425, 25)
+    env1_landbirds_on_forest_idxs = np.where((df.y == 0) & (df.subplace == 'forest'))[0]
+    env1_landbirds_on_ocean_idxs = np.where((df.y == 0) & (df.subplace == 'ocean'))[0]
+    env1_waterbirds_on_forest_idxs = np.where((df.y == 1) & (df.subplace == 'forest'))[0]
+    env1_waterbirds_on_ocean_idxs = np.where((df.y == 1) & (df.subplace == 'ocean'))[0]
+
+    env1_landbirds_on_forest_idxs = rng.choice(env1_landbirds_on_forest_idxs, 25, replace=False)
+    env1_landbirds_on_ocean_idxs = rng.choice(env1_landbirds_on_ocean_idxs, 425, replace=False)
+    # env1_waterbirds_on_forest_idxs = rng.choice(env1_waterbirds_on_forest_idxs, 425, replace=False) (only 290 examples)
+    env1_waterbirds_on_ocean_idxs = rng.choice(env1_waterbirds_on_ocean_idxs, 25, replace=False)
+
+    env1_idxs = np.concatenate((env1_landbirds_on_forest_idxs, env1_landbirds_on_ocean_idxs, env1_waterbirds_on_forest_idxs,
+         env1_waterbirds_on_ocean_idxs))
     df_env1 = df.iloc[env1_idxs]
     df_env1.e = 1
 

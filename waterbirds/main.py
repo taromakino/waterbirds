@@ -10,8 +10,7 @@ from vae import VAE
 
 
 def make_data(args):
-    data_train, data_val, data_test = data.make_data(args.train_ratio, args.batch_size,
-        args.eval_batch_size, args.n_workers, args.n_test_examples if args.task == Task.VAE else None)
+    data_train, data_val, data_test = data.make_data(args.train_ratio, args.batch_size, args.eval_batch_size, args.n_workers)
     if args.eval_stage is None:
         data_eval = None
     elif args.eval_stage == EvalStage.TRAIN:
@@ -93,7 +92,6 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=128)
     parser.add_argument('--eval_batch_size', type=int, default=1024)
     parser.add_argument('--n_workers', type=int, default=8)
-    parser.add_argument('--n_test_examples', type=int, default=1024)
     parser.add_argument('--causal_size', type=int, default=64)
     parser.add_argument('--spurious_size', type=int, default=64)
     parser.add_argument('--h_sizes', nargs='+', type=int, default=[256, 256])
