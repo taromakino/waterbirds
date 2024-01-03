@@ -51,18 +51,29 @@ def make_data(train_ratio, batch_size, eval_batch_size, n_workers):
     df['e'] = np.nan
     df['subplace'] = df.place_filename.apply(lambda x: x.split('/')[2])
 
-    test_landbirds_on_land_idxs = np.where((df.y == 0) & (df.place == 0))[0]
-    test_landbirds_on_water_idxs = np.where((df.y == 0) & (df.place == 1))[0]
-    test_waterbirds_on_land_idxs = np.where((df.y == 1) & (df.place == 0))[0]
-    test_waterbirds_on_water_idxs = np.where((df.y == 1) & (df.place == 1))[0]
+    test_landbirds_on_bamboo_forest_idxs = np.where((df.y == 0) & (df.subplace == 'bamboo_forest'))[0]
+    test_landbirds_on_forest_idxs = np.where((df.y == 0) & (df.subplace == 'forest'))[0]
+    test_landbirds_on_lake_idxs = np.where((df.y == 0) & (df.subplace == 'lake'))[0]
+    test_landbirds_on_ocean_idxs = np.where((df.y == 0) & (df.subplace == 'ocean'))[0]
 
-    test_landbirds_on_land_idxs = rng.choice(test_landbirds_on_land_idxs, 250, replace=False)
-    test_landbirds_on_water_idxs = rng.choice(test_landbirds_on_water_idxs, 250, replace=False)
-    test_waterbirds_on_land_idxs = rng.choice(test_waterbirds_on_land_idxs, 250, replace=False)
-    test_waterbirds_on_water_idxs = rng.choice(test_waterbirds_on_water_idxs, 250, replace=False)
+    test_waterbirds_on_bamboo_forest_idxs = np.where((df.y == 1) & (df.subplace == 'bamboo_forest'))[0]
+    test_waterbirds_on_forest_idxs = np.where((df.y == 1) & (df.subplace == 'forest'))[0]
+    test_waterbirds_on_lake_idxs = np.where((df.y == 1) & (df.subplace == 'lake'))[0]
+    test_waterbirds_on_ocean_idxs = np.where((df.y == 1) & (df.subplace == 'ocean'))[0]
 
-    test_idxs = np.concatenate((test_landbirds_on_land_idxs, test_landbirds_on_water_idxs, test_waterbirds_on_land_idxs,
-                                test_waterbirds_on_water_idxs))
+    test_landbirds_on_bamboo_forest_idxs = rng.choice(test_landbirds_on_bamboo_forest_idxs, 125, replace=False)
+    test_landbirds_on_forest_idxs = rng.choice(test_landbirds_on_forest_idxs, 125, replace=False)
+    test_landbirds_on_lake_idxs = rng.choice(test_landbirds_on_lake_idxs, 125, replace=False)
+    test_landbirds_on_ocean_idxs = rng.choice(test_landbirds_on_ocean_idxs, 125, replace=False)
+
+    test_waterbirds_on_bamboo_forest_idxs = rng.choice(test_waterbirds_on_bamboo_forest_idxs, 125, replace=False)
+    test_waterbirds_on_forest_idxs = rng.choice(test_waterbirds_on_forest_idxs, 125, replace=False)
+    test_waterbirds_on_lake_idxs = rng.choice(test_waterbirds_on_lake_idxs, 125, replace=False)
+    test_waterbirds_on_ocean_idxs = rng.choice(test_waterbirds_on_ocean_idxs, 125, replace=False)
+
+    test_idxs = np.concatenate((test_landbirds_on_bamboo_forest_idxs, test_landbirds_on_forest_idxs, test_landbirds_on_lake_idxs,
+        test_landbirds_on_ocean_idxs, test_waterbirds_on_bamboo_forest_idxs, test_waterbirds_on_forest_idxs,
+        test_waterbirds_on_lake_idxs, test_waterbirds_on_ocean_idxs))
     df_test = df.iloc[test_idxs]
     df = drop_idxs(df, test_idxs)
 
@@ -89,7 +100,7 @@ def make_data(train_ratio, batch_size, eval_batch_size, n_workers):
 
     env1_landbirds_on_forest_idxs = rng.choice(env1_landbirds_on_forest_idxs, 25, replace=False)
     env1_landbirds_on_ocean_idxs = rng.choice(env1_landbirds_on_ocean_idxs, 425, replace=False)
-    # env1_waterbirds_on_forest_idxs = rng.choice(env1_waterbirds_on_forest_idxs, 425, replace=False) (only 290 examples)
+    # env1_waterbirds_on_forest_idxs = rng.choice(env1_waterbirds_on_forest_idxs, 425, replace=False) # (only 287 examples)
     env1_waterbirds_on_ocean_idxs = rng.choice(env1_waterbirds_on_ocean_idxs, 25, replace=False)
 
     env1_idxs = np.concatenate((env1_landbirds_on_forest_idxs, env1_landbirds_on_ocean_idxs, env1_waterbirds_on_forest_idxs,
