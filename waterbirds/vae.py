@@ -211,8 +211,8 @@ class VAE(pl.LightningModule):
     def validation_step(self, batch, batch_idx, dataloader_idx):
         x, y, e = batch
         if dataloader_idx == 0:
-            log_prob_x_z, log_prob_y_zc, kl, prior_norm, y_pred = self.loss(x, y, e)
-            loss = -log_prob_x_z - self.y_mult * log_prob_y_zc + self.beta * kl + self.reg_mult * prior_norm
+            log_prob_x_z, log_prob_y_zc, kl, prior_reg, y_pred = self.loss(x, y, e)
+            loss = -log_prob_x_z - self.y_mult * log_prob_y_zc + self.beta * kl + self.prior_reg_mult * prior_reg
             self.log('val_log_prob_x_z', log_prob_x_z, on_step=False, on_epoch=True, add_dataloader_idx=False)
             self.log('val_log_prob_y_zc', log_prob_y_zc, on_step=False, on_epoch=True, add_dataloader_idx=False)
             self.log('val_kl', kl, on_step=False, on_epoch=True, add_dataloader_idx=False)
