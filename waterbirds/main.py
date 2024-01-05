@@ -31,7 +31,7 @@ def make_model(args):
     is_train = args.eval_stage is None
     if args.task == Task.ERM:
         if is_train:
-            return ERM(args.z_size, args.h_sizes, args.lr, args.weight_decay)
+            return ERM(args.z_size, args.lr, args.weight_decay)
         else:
             return ERM.load_from_checkpoint(ckpt_fpath(args, args.task))
     elif args.task == Task.VAE:
