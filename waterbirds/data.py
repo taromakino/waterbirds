@@ -98,10 +98,10 @@ def make_data(train_ratio, batch_size, eval_batch_size, n_workers):
     env1_waterbirds_on_forest_idxs = np.where((df.y == 1) & (df.subplace == 'forest'))[0]
     env1_waterbirds_on_ocean_idxs = np.where((df.y == 1) & (df.subplace == 'ocean'))[0]
 
-    env1_landbirds_on_forest_idxs = rng.choice(env1_landbirds_on_forest_idxs, 25, replace=False)
-    env1_landbirds_on_ocean_idxs = rng.choice(env1_landbirds_on_ocean_idxs, 425, replace=False)
-    # env1_waterbirds_on_forest_idxs = rng.choice(env1_waterbirds_on_forest_idxs, 425, replace=False) # (only 287 examples)
-    env1_waterbirds_on_ocean_idxs = rng.choice(env1_waterbirds_on_ocean_idxs, 25, replace=False)
+    env1_landbirds_on_forest_idxs = rng.choice(env1_landbirds_on_forest_idxs, 425, replace=False)
+    env1_landbirds_on_ocean_idxs = rng.choice(env1_landbirds_on_ocean_idxs, 25, replace=False)
+    env1_waterbirds_on_forest_idxs = rng.choice(env1_waterbirds_on_forest_idxs, 25, replace=False)
+    env1_waterbirds_on_ocean_idxs = rng.choice(env1_waterbirds_on_ocean_idxs, 425, replace=False)
 
     env1_idxs = np.concatenate((env1_landbirds_on_forest_idxs, env1_landbirds_on_ocean_idxs, env1_waterbirds_on_forest_idxs,
          env1_waterbirds_on_ocean_idxs))
