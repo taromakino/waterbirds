@@ -67,18 +67,14 @@ def main(args):
             callbacks=[
                 ModelCheckpoint(monitor='val_loss', filename='best')],
             max_epochs=args.n_epochs,
-            check_val_every_n_epoch=args.check_val_every_n_epoch,
-            num_sanity_val_steps=0,
-            deterministic=True,
-            inference_mode=False)
+            deterministic=True)
         trainer.fit(model, data_train, [data_val, data_test])
     else:
         assert args.task == Task.CLASSIFY
         trainer = pl.Trainer(
             logger=CSVLogger(os.path.join(args.dpath, args.task.value, args.eval_stage.value), name='', version=args.seed),
             max_epochs=1,
-            deterministic=True,
-            inference_mode=False)
+            deterministic=True)
         trainer.test(model, data_eval)
 
 
@@ -100,6 +96,5 @@ if __name__ == '__main__':
     parser.add_argument('--init_sd', type=float, default=1e-3)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--weight_decay', type=float, default=1e-5)
-    parser.add_argument('--n_epochs', type=int, default=200)
-    parser.add_argument('--check_val_every_n_epoch', type=int, default=20)
+    parser.add_argument('--n_epochs', type=int, default=100)
     main(parser.parse_args())
