@@ -102,7 +102,7 @@ class Prior(nn.Module):
 
 
 class VAE(pl.LightningModule):
-    def __init__(self, task, z_size, h_sizes, y_mult, prior_reg_mult, init_sd, lr, weight_decay):
+    def __init__(self, task, z_size, h_sizes, y_mult, prior_reg_mult, init_sd, lr, weight_decay, kl_anneal_epochs):
         super().__init__()
         self.save_hyperparameters()
         self.task = task
@@ -110,6 +110,7 @@ class VAE(pl.LightningModule):
         self.prior_reg_mult = prior_reg_mult
         self.lr = lr
         self.weight_decay = weight_decay
+        self.kl_anneal_epochs = kl_anneal_epochs
         # q(z_c,z_s|x)
         self.encoder = Encoder(z_size, h_sizes)
         # p(x|z_c, z_s)
@@ -126,6 +127,9 @@ class VAE(pl.LightningModule):
         batch_size, z_size = mu.shape
         epsilon = torch.randn(batch_size, z_size, 1).to(self.device)
         return mu + torch.bmm(scale_tril, epsilon).squeeze(-1)
+
+    def kl_mult(self):
+        return min(1., self.current_epoch / self.kl_anneal_epochs)
 
     def loss(self, x, y, e):
         batch_size = len(x)
