@@ -16,9 +16,11 @@ class Encoder(nn.Module):
         super().__init__()
         self.z_size = z_size
         self.encoder_cnn = EncoderCNN()
+        # Causal
         self.mu_causal = SkipMLP(IMG_ENCODE_SIZE, h_sizes, z_size)
         self.offdiag_causal = SkipMLP(IMG_ENCODE_SIZE, h_sizes, z_size ** 2)
         self.diag_causal = SkipMLP(IMG_ENCODE_SIZE, h_sizes, z_size)
+        # Spurious
         self.mu_spurious = SkipMLP(IMG_ENCODE_SIZE + N_CLASSES + N_ENVS, h_sizes, z_size)
         self.offdiag_spurious = SkipMLP(IMG_ENCODE_SIZE + N_CLASSES + N_ENVS, h_sizes, z_size ** 2)
         self.diag_spurious = SkipMLP(IMG_ENCODE_SIZE + N_CLASSES + N_ENVS, h_sizes, z_size)
@@ -56,23 +58,24 @@ class Decoder(nn.Module):
         self.mlp = SkipMLP(2 * z_size, h_sizes, IMG_DECODE_SIZE)
         self.decoder_cnn = DecoderCNN()
 
-    def forward(self, x, z):
-        batch_size = len(x)
+    def forward(self, z):
+        batch_size = len(z)
         x_pred = self.mlp(z).view(batch_size, *IMG_DECODE_SHAPE)
         x_pred = self.decoder_cnn(x_pred).view(batch_size, -1)
-        return -F.binary_cross_entropy_with_logits(x_pred, x.view(batch_size, -1), reduction='none').sum(dim=1)
+        return x_pred
 
 
 class Prior(nn.Module):
     def __init__(self, z_size, init_sd):
         super().__init__()
+        # Causal
         self.mu_causal = nn.Parameter(torch.zeros(z_size))
         self.offdiag_causal = nn.Parameter(torch.zeros(z_size, z_size))
         self.diag_causal = nn.Parameter(torch.zeros(z_size))
         nn.init.normal_(self.mu_causal, 0, init_sd)
         nn.init.normal_(self.offdiag_causal, 0, init_sd)
         nn.init.normal_(self.diag_causal, 0, init_sd)
-        # p(z_s|y,e)
+        # Spurious
         self.mu_spurious = nn.Parameter(torch.zeros(N_CLASSES, N_ENVS, z_size))
         self.offdiag_spurious = nn.Parameter(torch.zeros(N_CLASSES, N_ENVS, z_size, z_size))
         self.diag_spurious = nn.Parameter(torch.zeros(N_CLASSES, N_ENVS, z_size))
@@ -99,12 +102,11 @@ class Prior(nn.Module):
 
 
 class VAE(pl.LightningModule):
-    def __init__(self, task, z_size, h_sizes, y_mult, beta, prior_reg_mult, init_sd, lr, weight_decay):
+    def __init__(self, task, z_size, h_sizes, y_mult, prior_reg_mult, init_sd, lr, weight_decay):
         super().__init__()
         self.save_hyperparameters()
         self.task = task
         self.y_mult = y_mult
-        self.beta = beta
         self.prior_reg_mult = prior_reg_mult
         self.lr = lr
         self.weight_decay = weight_decay
@@ -126,13 +128,15 @@ class VAE(pl.LightningModule):
         return mu + torch.bmm(scale_tril, epsilon).squeeze(-1)
 
     def loss(self, x, y, e):
+        batch_size = len(x)
         # z_c,z_s ~ q(z_c,z_s|x)
         posterior_causal, posterior_spurious = self.encoder(x, y, e)
         z_c = self.sample_z(posterior_causal)
         z_s = self.sample_z(posterior_spurious)
         # E_q(z_c,z_s|x)[log p(x|z_c,z_s)]
         z = torch.hstack((z_c, z_s))
-        log_prob_x_z = self.decoder(x, z).mean()
+        x_pred = self.decoder(z)
+        log_prob_x_z = -F.binary_cross_entropy_with_logits(x_pred, x.view(batch_size, -1), reduction='none').sum(dim=1).mean()
         # E_q(z_c|x)[log p(y|z_c)]
         y_pred = self.classifier(z_c).view(-1)
         log_prob_y_zc = -F.binary_cross_entropy_with_logits(y_pred, y.float())
@@ -142,27 +146,23 @@ class VAE(pl.LightningModule):
         kl_spurious = D.kl_divergence(posterior_spurious, prior_spurious).mean()
         kl = kl_causal + kl_spurious
         prior_reg = (torch.hstack((prior_causal.loc, prior_spurious.loc)) ** 2).mean()
-        return log_prob_x_z, log_prob_y_zc, kl, prior_reg, y_pred
+        loss = -log_prob_x_z - self.y_mult * log_prob_y_zc + kl + self.prior_reg_mult * prior_reg
+        return loss
 
     def training_step(self, batch, batch_idx):
         x, y, e = batch
-        log_prob_x_z, log_prob_y_zc, kl, prior_reg, y_pred = self.loss(x, y, e)
-        loss = -log_prob_x_z - self.y_mult * log_prob_y_zc + self.beta * kl + self.prior_reg_mult * prior_reg
+        loss = self.loss(x, y, e)
         return loss
 
     def validation_step(self, batch, batch_idx, dataloader_idx):
         x, y, e = batch
+        y_pred = self.classify(x)
         if dataloader_idx == 0:
-            log_prob_x_z, log_prob_y_zc, kl, prior_reg, y_pred = self.loss(x, y, e)
-            loss = -log_prob_x_z - self.y_mult * log_prob_y_zc + self.beta * kl + self.prior_reg_mult * prior_reg
-            self.log('val_log_prob_x_z', log_prob_x_z, on_step=False, on_epoch=True, add_dataloader_idx=False)
-            self.log('val_log_prob_y_zc', log_prob_y_zc, on_step=False, on_epoch=True, add_dataloader_idx=False)
-            self.log('val_kl', kl, on_step=False, on_epoch=True, add_dataloader_idx=False)
+            loss = self.loss(x, y, e)
             self.log('val_loss', loss, on_step=False, on_epoch=True, add_dataloader_idx=False)
             self.val_acc.update(y_pred, y)
         else:
             assert dataloader_idx == 1
-            y_pred = self.classify(x)
             self.test_acc.update(y_pred, y)
 
     def on_validation_epoch_end(self):
