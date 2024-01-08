@@ -35,7 +35,6 @@ class ERM(pl.LightningModule):
     def validation_step(self, batch, batch_idx, dataloader_idx):
         y_pred, y = self(*batch)
         if dataloader_idx == 0:
-            loss = F.binary_cross_entropy_with_logits(y_pred, y.float())
             self.val_acc.update(y_pred, y)
         else:
             assert dataloader_idx == 1
