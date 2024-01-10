@@ -146,12 +146,12 @@ class VAE(pl.LightningModule):
         kl_child = D.kl_divergence(posterior_child, prior_child).mean()
         kl = kl_parent + kl_child
         prior_reg = torch.norm(torch.hstack((prior_parent.loc, prior_child.loc)), dim=1).mean()
-        loss = -log_prob_x_z - self.y_mult * log_prob_y_zc + self.kl_mult() * kl + self.prior_reg_mult * prior_reg
-        return loss
+        return log_prob_x_z, log_prob_y_zc, kl, prior_reg
 
     def training_step(self, batch, batch_idx):
         x, y, e, p, c = batch
-        loss = self.loss(x, y, e)
+        log_prob_x_z, log_prob_y_zc, kl, prior_reg = self.loss(x, y, e)
+        loss = -log_prob_x_z - self.y_mult * log_prob_y_zc + self.kl_mult() * kl + self.prior_reg_mult * prior_reg
         return loss
 
     def validation_step(self, batch, batch_idx, dataloader_idx):
