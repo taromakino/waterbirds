@@ -159,7 +159,8 @@ class VAE(pl.LightningModule):
         y_pred = self.classify(x)
         if dataloader_idx == 0:
             log_prob_x_z, log_prob_y_zc, kl, prior_reg = self.loss(x, y, e)
-            self.log('val_kl', kl, on_step=False, on_epoch=True)
+            self.log('val_log_prob_x_z', log_prob_x_z, on_step=False, on_epoch=True, add_dataloader_idx=False)
+            self.log('val_kl', kl, on_step=False, on_epoch=True, add_dataloader_idx=False)
             self.val_acc(y_pred, y)
         else:
             assert dataloader_idx == 1
